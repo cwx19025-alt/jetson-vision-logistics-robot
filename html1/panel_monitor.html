@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监控系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", -apple-system, sans-serif;
+        }
+        body {
+            background-color: #0f1923;
+            color: #e0e0e0;
+            padding: 16px;
+            min-height: 100vh;
+        }
+
+        /* ===== 顶部标题栏 ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #1a2a3a, #162230);
+            border-radius: 10px;
+            border: 1px solid #2a3a4a;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 {
+            font-size: 22px;
+            color: #4fc3f7;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1::before {
+            content: "●";
+            font-size: 14px;
+            color: #69f0ae;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+        .header-status .status-label { color: #8899aa; }
+        .header-status .status-value { color: #69f0ae; font-weight: bold; }
+
+        /* ===== 控制栏 ===== */
+        .control-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #1a2a3a;
+            border-radius: 10px;
+            border: 1px solid #2a3a4a;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn:active { transform: translateY(0); filter: brightness(0.9); }
+
+        .btn-danger  { background: #c62828; color: #fff; }
+        .btn-warning { background: #f9a825; color: #1a1a1a; }
+        .btn-success { background: #2e7d32; color: #fff; }
+        .btn-primary { background: #1565c0; color: #fff; }
+        .btn-secondary { background: #37474f; color: #fff; }
+
+        /* ===== 方向键 ===== */
+        .dir-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 8px;
+            border-left: 1px solid #2a3a4a;
+            border-right: 1px solid #2a3a4a;
+            margin: 0 4px;
+        }
+        .dir-grid {
+            display: grid;
+            grid-template-areas:
+                ".  up ."
+                "left center right"
+                ". down .";
+            gap: 4px;
+        }
+        .dir-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s;
+            background: #263238;
+            color: #b0bec5;
+        }
+        .dir-btn:hover { background: #37474f; color: #fff; transform: scale(1.05); }
+        .dir-btn:active { transform: scale(0.92); }
+        .btn-up    { grid-area: up; }
+        .btn-left  { grid-area: left; }
+        .btn-right { grid-area: right; }
+        .btn-down  { grid-area: down; }
+        .btn-stop  {
+            grid-area: center;
+            background: #c62828 !important;
+            color: #fff !important;
+            font-size: 14px;
+        }
+        .btn-stop:hover { background: #e53935 !important; }
+
+        .divider-v {
+            width: 1px;
+            height: 32px;
+            background: #2a3a4a;
+            margin: 0 4px;
+        }
+
+        /* ===== 主网格布局 ===== */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            grid-template-rows: auto auto;
+            gap: 16px;
+        }
+
+        /* 视频区 - 左上 */
+        .video-section {
+            grid-row: 1 / 3;
+            background: #000;
+            border-radius: 10px;
+            border: 1px solid #2a3a4a;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .video-section .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: #1a2a3a;
+            border-bottom: 1px solid #2a3a4a;
+        }
+        .video-section .section-header h2 {
+            font-size: 15px;
+            color: #4fc3f7;
+        }
+        .video-section .section-header .badge {
+            font-size: 12px;
+            padding: 2px 10px;
+            border-radius: 10px;
+            background: #2e7d32;
+            color: #fff;
+        }
+        .video-frame {
+            flex: 1;
+            width: 100%;
+            object-fit: contain;
+            background: #000;
+            min-height: 480px;
+            display: block;
+        }
+
+        /* ===== 右侧面板通用 ===== */
+        .panel {
+            background: #1a2a3a;
+            border-radius: 10px;
+            border: 1px solid #2a3a4a;
+            overflow: hidden;
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid #2a3a4a;
+            background: rgba(0,0,0,0.15);
+        }
+        .panel-header h2 {
+            font-size: 14px;
+            color: #90a4ae;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .panel-body {
+            padding: 12px 16px;
+        }
+
+        /* ===== 系统状态与检测数据面板（右上） ===== */
+        .status-panel {
+            grid-column: 2;
+            grid-row: 1;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .status-card {
+            background: #0f1923;
+            border-radius: 6px;
+            padding: 10px 12px;
+            border: 1px solid #263238;
+        }
+        .status-card .label {
+            font-size: 11px;
+            color: #78909c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-card .value {
+            font-size: 15px;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .value-running { color: #69f0ae; }
+        .value-stopped  { color: #ef5350; }
+        .value-info     { color: #4fc3f7; }
+        .value-warn     { color: #ffd54f; }
+
+        /* ===== 运行参数 ===== */
+        .params-panel {
+            grid-column: 2;
+            grid-row: 2;
+        }
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #263238;
+        }
+        .param-row:last-child { border-bottom: none; }
+        .param-row .label { font-size: 13px; color: #78909c; }
+        .param-row .value { font-size: 13px; color: #e0e0e0; font-weight: 500; }
+
+        /* ===== 日志面板（下方跨越两列） ===== */
+        .log-section {
+            margin-top: 16px;
+            background: #0d1a22;
+            border-radius: 10px;
+            border: 1px solid #2a3a4a;
+            display: flex;
+            flex-direction: column;
+        }
+        .log-section .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: #1a2a3a;
+            border-bottom: 1px solid #2a3a4a;
+        }
+        .log-section .section-header h2 {
+            font-size: 14px;
+            color: #90a4ae;
+        }
+        .log-btn-group {
+            display: flex;
+            gap: 6px;
+        }
+        .log-btn-group .btn { padding: 4px 12px; font-size: 12px; }
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px 16px;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-item { padding: 2px 0; white-space: pre-wrap; }
+        .log-info    { color: #4fc3f7; }
+        .log-success { color: #69f0ae; }
+        .log-warning { color: #ffd54f; }
+        .log-error   { color: #ef5350; }
+        .log-debug   { color: #ce93d8; }
+
+        /* ===== 模态：相机参数与检测数据 ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: #1a2a3a;
+            border-radius: 12px;
+            border: 1px solid #2a3a4a;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        .modal-box h2 {
+            font-size: 18px;
+            color: #4fc3f7;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2a3a4a;
+        }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            color: #78909c;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: #fff; }
+
+        .camera-param-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            gap: 10px;
+        }
+        .camera-param-item label {
+            width: 160px;
+            font-size: 13px;
+            color: #b0bec5;
+        }
+        .camera-param-item input {
+            flex: 1;
+            padding: 6px 10px;
+            background: #0f1923;
+            border: 1px solid #37474f;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+        .camera-param-item input:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .modal-box .btn-primary {
+            width: 100%;
+            margin-top: 16px;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        .data-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #0f1923;
+            border-radius: 6px;
+            border: 1px solid #263238;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .data-item strong { color: #4fc3f7; }
+        .data-item .timestamp {
+            font-size: 11px;
+            color: #546e7a;
+            margin-top: 4px;
+        }
+
+        /* ===== 调试下拉框 ===== */
+        .debug-select {
+            background: #0f1923;
+            color: #e0e0e0;
+            border: 1px solid #37474f;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            max-width: 160px;
+        }
+        .debug-select:hover { border-color: #4fc3f7; }
+        .debug-select:focus { outline: none; border-color: #f9a825; }
+
+        /* ===== 滚动条美化 ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f1923; }
+        ::-webkit-scrollbar-thumb { background: #37474f; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #546e7a; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 顶部标题栏 ===== -->
+    <div class="header">
+        <h1>Jetson 监控系统</h1>
+        <div class="header-status">
+            <span class="status-label">系统状态：</span>
+            <span id="systemStatus" class="status-value">运行中</span>
+            <span style="color:#546e7a;margin:0 4px;">|</span>
+            <span class="status-label">检测开关：</span>
+            <span id="detectFlagSmall" class="status-value">--</span>
+        </div>
+    </div>
+
+    <!-- ===== 控制栏 ===== -->
+    <div class="control-bar">
+        <button class="btn btn-danger" onclick="shutdownSystem()">关闭服务</button>
+        <button class="btn btn-warning" onclick="sendRestartSignal()">重启检测</button>
+        <button class="btn btn-success" onclick="restartJetson()">重启 Jetson</button>
+        <button class="btn btn-danger" onclick="shutdownJetson()">关闭 Jetson</button>
+
+        <div class="dir-group">
+            <div class="dir-grid">
+                <button class="dir-btn btn-up" onclick="goForward()">↑</button>
+                <button class="dir-btn btn-left" onclick="goLeft()">←</button>
+                <button class="dir-btn btn-stop" onclick="goStop()">⏹</button>
+                <button class="dir-btn btn-right" onclick="goRight()">→</button>
+                <button class="dir-btn btn-down" onclick="goBack()">↓</button>
+            </div>
+        </div>
+
+        <div class="divider-v"></div>
+
+        <button class="btn btn-secondary" onclick="openModal('cameraModal')">📷 相机参数</button>
+        <button class="btn btn-secondary" onclick="openModal('dataModal')">📊 检测数据</button>
+        <button class="btn btn-secondary" onclick="clearLogs()">🗑 清空日志</button>
+    </div>
+
+    <!-- ===== 主网格 ===== -->
+    <div class="main-grid">
+
+        <!-- ====== 视频区 ====== -->
+        <div class="video-section">
+            <div class="section-header">
+                <h2>● 实时视频流（Jetson 采集）</h2>
+                <span class="badge">LIVE</span>
+            </div>
+            <img id="videoFeed" class="video-frame" alt="实时视频流">
+        </div>
+
+        <!-- ====== 状态面板（右上） ====== -->
+        <div class="panel status-panel">
+            <div class="panel-header">
+                <h2>系统状态</h2>
+                <span id="ifStopDisplay" style="font-size:12px;color:#78909c;">--</span>
+            </div>
+            <div class="panel-body">
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="label">检测开关</div>
+                        <div id="detectFlag" class="value value-running">加载中...</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">停止标志</div>
+                        <div id="ifStopFlag" class="value value-stopped">加载中...</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">小车状态</div>
+                        <div id="current_state" class="value value-info">加载中...</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">当前小球</div>
+                        <div id="min_name" class="value value-warn">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== 运行参数面板（右中） ====== -->
+        <div class="panel params-panel">
+            <div class="panel-header">
+                <h2>运行参数</h2>
+                <span style="font-size:11px;color:#546e7a;">实时更新</span>
+            </div>
+            <div class="panel-body">
+                <div class="param-row">
+                    <span class="label">RGB 匹配值</span>
+                    <span id="rgb_ma_value" class="value">--</span>
+                </div>
+                <div class="param-row">
+                    <span class="label">轮速时间 (ms)</span>
+                    <span id="wheel_time" class="value">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== 调试参数面板（右下方新增） ====== -->
+        <div class="panel params-panel" style="grid-column:2;grid-row:3;margin-top:16px;">
+            <div class="panel-header">
+                <h2>🔧 调试参数（实时修改）</h2>
+                <span style="font-size:10px;color:#f9a825;">⚡ 立即生效</span>
+            </div>
+            <div class="panel-body">
+                <div class="param-row">
+                    <span class="label">detect_flag</span>
+                    <select id="debug_detect_flag" class="debug-select" onchange="setDebugParam('detect_flag', this.value)">
+                        <option value="true">True (开启)</option>
+                        <option value="false">False (关闭)</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <span class="label">idx_m</span>
+                    <select id="debug_idx_m" class="debug-select" onchange="setDebugParam('idx_m', this.value)">
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <span class="label">material_haved</span>
+                    <select id="debug_material_haved" class="debug-select" onchange="setDebugParam('material_haved', this.value)">
+                        <option value="[]">清空 []</option>
+                        <option value='["r_m"]'>["r_m"]</option>
+                        <option value='["g_m"]'>["g_m"]</option>
+                        <option value='["b_m"]'>["b_m"]</option>
+                        <option value='["r_c"]'>["r_c"]</option>
+                        <option value='["g_c"]'>["g_c"]</option>
+                        <option value='["b_c"]'>["b_c"]</option>
+                        <option value='["r_m","g_m"]'>["r_m","g_m"]</option>
+                        <option value='["r_m","b_m"]'>["r_m","b_m"]</option>
+                        <option value='["g_m","b_m"]'>["g_m","b_m"]</option>
+                        <option value='["r_c","g_c"]'>["r_c","g_c"]</option>
+                        <option value='["r_c","b_c"]'>["r_c","b_c"]</option>
+                        <option value='["g_c","b_c"]'>["g_c","b_c"]</option>
+                        <option value='["r_m","b_m","g_m"]'>["r_m","b_m","g_m"]</option>
+                        <option value='["r_c","b_c","g_c"]'>["r_c","b_c","g_c"]</option>
+                        <option value='["r_m","g_m","b_m","r_c","g_c","b_c"]'>全6种 ["r_m","g_m","b_m","r_c","g_c","b_c"]</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <span class="label">error_data</span>
+                    <select id="debug_error_data" class="debug-select" onchange="setDebugParam('error_data', this.value)">
+                        <option value="[]">清空 []</option>
+                        <option value='["r_c","b_c","g_c","r_m","b_m","g_m"]'>全6种 ["r_c","b_c","g_c","r_m","b_m","g_m"]</option>
+                        <option value='["r_c","b_c","g_c"]'>杯子类 ["r_c","b_c","g_c"]</option>
+                        <option value='["r_m","b_m","g_m"]'>材质类 ["r_m","b_m","g_m"]</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <span class="label">video_state</span>
+                    <select id="debug_video_state" class="debug-select" onchange="setDebugParam('video_state', this.value)">
+                        <option value="0">0 - 转盘</option>
+                        <option value="1">1 - 圆圈放</option>
+                        <option value="2">2 - 圆圈拿</option>
+                        <option value="3">3 - 小红圈</option>
+                        <option value="4">4 - 完成</option>
+                        <option value="5">5 - 逆向放</option>
+                        <option value="6">6 - 逆向完成</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <span class="label">state</span>
+                    <select id="debug_state" class="debug-select" onchange="setDebugParam('state', this.value)">
+                        <option value="wait_detect">wait_detect</option>
+                        <option value="move">move</option>
+                        <option value="stop">stop</option>
+                        <option value="stop1">stop1</option>
+                        <option value="stop_move_time">stop_move_time</option>
+                        <option value="stop_grasp_time">stop_grasp_time</option>
+                        <option value="grasp">grasp</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ====== 日志面板 ====== -->
+    <div class="log-section">
+        <div class="section-header">
+            <h2>📋 实时系统日志</h2>
+            <div class="log-btn-group">
+                <button class="btn btn-success" onclick="enableLogScroll()">✅ 自动滚动</button>
+                <button class="btn btn-warning" onclick="disableLogScroll()">⏸ 停止滚动</button>
+            </div>
+        </div>
+        <div id="logContainer" class="log-container">
+            <div class="log-item log-info">等待日志数据...</div>
+        </div>
+    </div>
+
+    <!-- ====== 模态：相机参数 ====== -->
+    <div id="cameraModal" class="modal-overlay" onclick="closeModalOutside(event, 'cameraModal')">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeModal('cameraModal')">✕</button>
+            <h2>📷 相机参数控制</h2>
+            <div class="camera-param-item">
+                <label>YOLO 曝光时间：</label>
+                <input type="number" id="exposure_time_yolo">
+            </div>
+            <div class="camera-param-item">
+                <label>QR 曝光时间：</label>
+                <input type="number" id="exposure_time_qr">
+            </div>
+            <div class="camera-param-item">
+                <label>YOLO 白平衡：</label>
+                <input type="number" id="white_balance_temperature_yolo">
+            </div>
+            <div class="camera-param-item">
+                <label>QR 白平衡：</label>
+                <input type="number" id="white_balance_temperature_qr">
+            </div>
+            <div class="camera-param-item">
+                <label>X 图像中心校准：</label>
+                <input type="number" id="x_img_center_xiu">
+            </div>
+            <div class="camera-param-item">
+                <label>Y 图像中心校准：</label>
+                <input type="number" id="y_img_center_xiu">
+            </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #263238;">
+                <h3 style="font-size:14px;color:#78909c;margin-bottom:8px;">RGB 检测参数</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [0]</label>
+                        <input type="number" id="rgb_0">
+                    </div>
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [1]</label>
+                        <input type="number" id="rgb_1">
+                    </div>
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [2]</label>
+                        <input type="number" id="rgb_2">
+                    </div>
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [3]</label>
+                        <input type="number" id="rgb_3">
+                    </div>
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [4]</label>
+                        <input type="number" id="rgb_4">
+                    </div>
+                    <div class="camera-param-item" style="flex-direction:column;align-items:stretch;">
+                        <label style="width:auto;">RGB [5]</label>
+                        <input type="number" id="rgb_5">
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="saveCameraParams()">💾 保存参数</button>
+        </div>
+    </div>
+
+    <!-- ====== 模态：检测数据 ====== -->
+    <div id="dataModal" class="modal-overlay" onclick="closeModalOutside(event, 'dataModal')">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+            <h2>📊 检测数据详情</h2>
+            <div id="targetData">
+                <div class="data-item">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            BASE_URL: "http://192.168.5.27:8080",
+            REFRESH_INTERVAL: 100,
+            VIDEO_REFRESH_INTERVAL: 1000,
+            LOG_REFRESH_INTERVAL: 200
+        };
+
+        let dataTimer = null;
+        let statusTimer = null;
+        let videoTimer = null;
+        let logTimer = null;
+        let logAutoScroll = true;
+
+        // ===== 日志滚动 =====
+        function enableLogScroll() {
+            logAutoScroll = true;
+            const el = document.getElementById('logContainer');
+            el.scrollTop = el.scrollHeight;
+        }
+        function disableLogScroll() { logAutoScroll = false; }
+
+        // ===== 模态框 =====
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        function closeModalOutside(e, id) {
+            if (e.target === e.currentTarget) closeModal(id);
+        }
+
+        window.onload = function() {
+            initVideoFeed();
+            initDataRefresh();
+            initStatusRefresh();
+            initLogRefresh();
+            loadCameraParams();
+        };
+
+        // ===== 视频流 =====
+        function initVideoFeed() {
+            function refreshVideo() {
+                const videoElement = document.getElementById('videoFeed');
+                videoElement.src = `${CONFIG.BASE_URL}/video_feed?timestamp=${new Date().getTime()}`;
+            }
+            refreshVideo();
+            videoTimer = setInterval(refreshVideo, CONFIG.VIDEO_REFRESH_INTERVAL);
+        }
+
+        // ===== 检测数据 =====
+        function initDataRefresh() {
+            async function fetchTargetData() {
+                try {
+                    const response = await fetch(`${CONFIG.BASE_URL}/target_data`);
+                    if (!response.ok) throw new Error("数据请求失败");
+                    const data = await response.json();
+                    if (data.code !== 200) throw new Error("后端返回错误");
+                    renderTargetData(data);
+                    renderExtraParams(data);
+                } catch (error) {
+                    console.error("获取检测数据失败：", error);
+                    document.getElementById('targetData').innerHTML =
+                        '<div class="data-item" style="color: #ef5350;">数据加载失败，请检查后端服务</div>';
+                    document.getElementById('current_state').textContent = "获取失败";
+                    document.getElementById('min_name').textContent = "获取失败";
+                    document.getElementById('rgb_ma_value').textContent = "获取失败";
+                    document.getElementById('wheel_time').textContent = "无数据";
+                }
+            }
+            fetchTargetData();
+            dataTimer = setInterval(fetchTargetData, CONFIG.REFRESH_INTERVAL);
+        }
+
+        // ===== 系统状态 =====
+        function initStatusRefresh() {
+            async function fetchSystemStatus() {
+                try {
+                    const response = await fetch(`${CONFIG.BASE_URL}/status?timestamp=${new Date().getTime()}`);
+                    if (!response.ok) throw new Error("状态请求失败");
+                    const data = await response.json();
+                    if (data.code !== 200) throw new Error(data.msg || "获取状态失败");
+                    renderSystemStatus(data);
+                } catch (error) {
+                    console.error("获取系统状态失败：", error);
+                    document.getElementById('detectFlag').textContent = "获取失败";
+                    document.getElementById('ifStopFlag').textContent = "获取失败";
+                }
+            }
+            fetchSystemStatus();
+            statusTimer = setInterval(fetchSystemStatus, CONFIG.REFRESH_INTERVAL);
+        }
+
+        // ===== 日志 =====
+        function initLogRefresh() {
+            const logBox = document.getElementById('logContainer');
+            async function fetchNewLogs() {
+                try {
+                    const res = await fetch(`${CONFIG.BASE_URL}/get_logs`);
+                    const data = await res.json();
+                    if (!data.logs || data.logs.length === 0) return;
+                    data.logs.forEach(log => {
+                        const div = document.createElement('div');
+                        div.className = `log-item log-${log.level}`;
+                        div.textContent = `[${log.time}] [${log.level.toUpperCase()}] ${log.msg}`;
+                        logBox.appendChild(div);
+                    });
+                    if (logAutoScroll) logBox.scrollTop = logBox.scrollHeight;
+                } catch (e) {}
+            }
+            fetchNewLogs();
+            logTimer = setInterval(fetchNewLogs, CONFIG.LOG_REFRESH_INTERVAL);
+        }
+
+        function clearLogs() {
+            document.getElementById('logContainer').innerHTML = '<div class="log-item log-info">日志已清空</div>';
+        }
+
+        // ===== 渲染 =====
+        function renderTargetData(data) {
+            const targetDataElement = document.getElementById('targetData');
+            targetDataElement.innerHTML = '';
+            for (const [cls, info] of Object.entries(data.result)) {
+                const item = document.createElement('div');
+                item.className = 'data-item';
+                if (info && info.length === 5) {
+                    item.innerHTML = `
+                        <strong>${cls}</strong><br>
+                        中心X: ${info[0]} | 中心Y: ${info[1]}<br>
+                        置信度: ${info[2].toFixed(2)}<br>
+                        X偏差: ${info[3]} | Y偏差: ${info[4]}
+                        <div class="timestamp">${new Date(data.timestamp * 1000).toLocaleString()}</div>
+                    `;
+                } else {
+                    item.innerHTML = `<strong>${cls}</strong><br><span style="color:#78909c;">未检测到目标</span>`;
+                }
+                targetDataElement.appendChild(item);
+            }
+        }
+
+        function renderExtraParams(data) {
+            document.getElementById('current_state').textContent = data.state || "无数据";
+            document.getElementById('min_name').textContent = data.min_name || "未识别";
+            document.getElementById('rgb_ma_value').textContent = data.rgb_ma_value || "--";
+            document.getElementById('wheel_time').textContent = data.wheel_time || "--";
+        }
+
+        function renderSystemStatus(data) {
+            const df = document.getElementById('detectFlag');
+            if (data.detect_flag) {
+                df.textContent = "开启 (1)";
+                df.className = "value value-running";
+                document.getElementById('detectFlagSmall').textContent = "开启";
+                document.getElementById('detectFlagSmall').style.color = "#69f0ae";
+            } else {
+                df.textContent = "关闭 (0)";
+                df.className = "value value-stopped";
+                document.getElementById('detectFlagSmall').textContent = "关闭";
+                document.getElementById('detectFlagSmall').style.color = "#ef5350";
+            }
+
+            const st = document.getElementById('ifStopFlag');
+            const sd = document.getElementById('ifStopDisplay');
+            if (data.if_stop_flag) {
+                st.textContent = "已停止 (true)";
+                st.className = "value value-stopped";
+                sd.textContent = "● 已停止";
+                sd.style.color = "#ef5350";
+            } else {
+                st.textContent = "运行中 (false)";
+                st.className = "value value-running";
+                sd.textContent = "● 运行中";
+                sd.style.color = "#69f0ae";
+            }
+        }
+
+        // ===== 相机参数 =====
+        async function loadCameraParams() {
+            try {
+                let res = await fetch(`${CONFIG.BASE_URL}/camera_params`);
+                let data = await res.json();
+                document.getElementById('exposure_time_yolo').value = data.exposure_time_yolo;
+                document.getElementById('exposure_time_qr').value = data.exposure_time_qr;
+                document.getElementById('white_balance_temperature_yolo').value = data.white_balance_temperature_yolo;
+                document.getElementById('white_balance_temperature_qr').value = data.white_balance_temperature_qr;
+                document.getElementById('x_img_center_xiu').value = data.x_img_center_xiu || 0;
+                document.getElementById('y_img_center_xiu').value = data.y_img_center_xiu || 0;
+                if(data.rgb){
+                    document.getElementById('rgb_0').value = data.rgb[0] || 3;
+                    document.getElementById('rgb_1').value = data.rgb[1] || 2;
+                    document.getElementById('rgb_2').value = data.rgb[2] || 1;
+                    document.getElementById('rgb_3').value = data.rgb[3] || 1;
+                    document.getElementById('rgb_4').value = data.rgb[4] || 2;
+                    document.getElementById('rgb_5').value = data.rgb[5] || 3;
+                }
+            } catch(e) { console.log("相机参数获取失败"); }
+        }
+
+        async function saveCameraParams() {
+            const params = {
+                exposure_time_yolo: parseInt(document.getElementById('exposure_time_yolo').value),
+                exposure_time_qr: parseInt(document.getElementById('exposure_time_qr').value),
+                white_balance_temperature_yolo: parseInt(document.getElementById('white_balance_temperature_yolo').value),
+                white_balance_temperature_qr: parseInt(document.getElementById('white_balance_temperature_qr').value),
+                x_img_center_xiu: parseInt(document.getElementById('x_img_center_xiu').value),
+                y_img_center_xiu: parseInt(document.getElementById('y_img_center_xiu').value),
+                rgb: [
+                    parseInt(document.getElementById('rgb_0').value),
+                    parseInt(document.getElementById('rgb_1').value),
+                    parseInt(document.getElementById('rgb_2').value),
+                    parseInt(document.getElementById('rgb_3').value),
+                    parseInt(document.getElementById('rgb_4').value),
+                    parseInt(document.getElementById('rgb_5').value)
+                ]
+            };
+            try {
+                await fetch(`${CONFIG.BASE_URL}/set_camera_params`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                alert("保存成功！");
+                loadCameraParams();
+            } catch (e) { alert("保存失败！"); }
+        }
+
+        // ===== 方向控制 =====
+        async function goForward() { await fetch(`${CONFIG.BASE_URL}/cmd/forward`); console.log("前进"); }
+        async function goBack()    { await fetch(`${CONFIG.BASE_URL}/cmd/back`);    console.log("后退"); }
+        async function goLeft()    { await fetch(`${CONFIG.BASE_URL}/cmd/left`);    console.log("左转"); }
+        async function goRight()   { await fetch(`${CONFIG.BASE_URL}/cmd/right`);   console.log("右转"); }
+        async function goStop()    { await fetch(`${CONFIG.BASE_URL}/cmd/stop`);    console.log("停止"); }
+
+        // ===== 系统控制 =====
+        async function shutdownSystem() {
+            if (!confirm("确认要关闭系统服务吗？")) return;
+            try {
+                await fetch(`${CONFIG.BASE_URL}/shutdown`);
+                clearInterval(dataTimer); clearInterval(statusTimer);
+                clearInterval(videoTimer); clearInterval(logTimer);
+                document.getElementById('systemStatus').textContent = "已关闭";
+                document.getElementById('systemStatus').style.color = "#ef5350";
+                document.getElementById('videoFeed').src = "";
+                alert("系统服务已成功关闭！");
+            } catch (error) { alert("关闭系统失败！"); }
+        }
+
+        async function sendRestartSignal() {
+            if (!confirm("确认发送重启指令？")) return;
+            try { await fetch(`${CONFIG.BASE_URL}/restart`); alert("重启指令已发送 ✅"); }
+            catch (e) { alert("发送失败"); }
+        }
+
+        async function restartJetson() {
+            if (!confirm("⚠️ 确认重启 Jetson？")) return;
+            try { await fetch(`${CONFIG.BASE_URL}/restart_jetson`); alert("✅ 重启指令已发送"); }
+            catch(e) { alert("❌ 重启失败"); }
+        }
+
+        async function shutdownJetson() {
+            if (!confirm("⚠️ 确认关闭 Jetson？")) return;
+            try { await fetch(`${CONFIG.BASE_URL}/shutdown_jetson`); alert("✅ Jetson 关机指令已发送"); }
+            catch(e) { alert("❌ 关机失败"); }
+        }
+
+        // ===== 调试参数：发送设置指令 =====
+        async function setDebugParam(param, value) {
+            const body = {};
+            if (param === 'detect_flag') {
+                body[param] = value === 'true';
+            } else if (param === 'material_haved' || param === 'error_data') {
+                try { body[param] = JSON.parse(value); } catch(e) { body[param] = []; }
+            } else if (param === 'idx_m' || param === 'video_state') {
+                body[param] = parseInt(value);
+            } else {
+                body[param] = value;
+            }
+            try {
+                const res = await fetch(`${CONFIG.BASE_URL}/set_debug_param`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    console.log(`🔧 ${param} ->`, value);
+                }
+            } catch(e) {
+                console.error("设置调试参数失败:", e);
+            }
+        }
+
+        // ===== 调试参数：自动刷新 =====
+        async function refreshDebugParams() {
+            try {
+                const res = await fetch(`${CONFIG.BASE_URL}/debug_params?timestamp=${Date.now()}`);
+                const data = await res.json();
+                if (data.code !== 200) return;
+                // detect_flag
+                const dfVal = data.detect_flag ? 'true' : 'false';
+                document.getElementById('debug_detect_flag').value = dfVal;
+                // idx_m
+                document.getElementById('debug_idx_m').value = String(data.idx_m);
+                // material_haved
+                const mhStr = JSON.stringify(data.material_haved);
+                const mhSelect = document.getElementById('debug_material_haved');
+                let mhMatched = false;
+                for (let i = 0; i < mhSelect.options.length; i++) {
+                    if (mhSelect.options[i].value === mhStr) {
+                        mhSelect.value = mhStr;
+                        mhMatched = true;
+                        break;
+                    }
+                }
+                if (!mhMatched) {
+                    const opt = document.createElement('option');
+                    opt.value = mhStr;
+                    opt.textContent = mhStr;
+                    opt.selected = true;
+                    mhSelect.appendChild(opt);
+                }
+                // error_data：前端直接强制覆盖，不反馈后端值
+                // 不做任何同步操作
+                // video_state
+                document.getElementById('debug_video_state').value = String(data.video_state);
+                // state
+                const stateEl = document.getElementById('debug_state');
+                let stateMatched = false;
+                for (let i = 0; i < stateEl.options.length; i++) {
+                    if (stateEl.options[i].value === data.state) {
+                        stateEl.value = data.state;
+                        stateMatched = true;
+                        break;
+                    }
+                }
+                if (!stateMatched) {
+                    const opt = document.createElement('option');
+                    opt.value = data.state;
+                    opt.textContent = data.state;
+                    opt.selected = true;
+                    stateEl.appendChild(opt);
+                }
+            } catch(e) {
+                console.error("刷新调试参数失败:", e);
+            }
+        }
+
+        // ===== 定时刷新调试参数 =====
+        setInterval(refreshDebugParams, CONFIG.REFRESH_INTERVAL);
+
+        window.onbeforeunload = function() {
+            clearInterval(dataTimer);
+            clearInterval(statusTimer);
+            clearInterval(videoTimer);
+            clearInterval(logTimer);
+        };
+    </script>
+</body>
+</html>

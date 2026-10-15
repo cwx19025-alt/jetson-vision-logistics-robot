@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>分拣系统调试面板 - 192.168.1.101</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .video-panel {
+            flex: 1;
+            background: #16213e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .video-panel img {
+            max-width: 100%;
+            max-height: 70vh;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+        }
+        .video-panel .stats {
+            margin-top: 10px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .control-panel {
+            width: 420px;
+            background: #0f3460;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h2 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+        .section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+        }
+        label {
+            min-width: 80px;
+            color: #ccc;
+        }
+        input,
+        select,
+        button {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #e94560;
+        }
+        button {
+            cursor: pointer;
+            background: #e94560;
+            border: none;
+            transition: background 0.3s;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        button:hover {
+            background: #ff6b6b;
+        }
+        button:active {
+            background: #c23152;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn-group button {
+            min-width: 50px;
+            min-height: 40px;
+            font-size: 16px;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        .btn-dir {
+            font-weight: bold;
+            letter-spacing: 1px;
+            position: relative;
+        }
+        .btn-dir.active-dir {
+            background: #f1c40f;
+            color: #000;
+            border: 2px solid #f39c12;
+            box-shadow: 0 0 12px #f1c40f;
+            transform: scale(1.02);
+        }
+        .danger {
+            background: #c0392b !important;
+        }
+        .success {
+            background: #27ae60 !important;
+        }
+        #logs {
+            background: #111;
+            height: 150px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .state-badge {
+            background: #2ecc71;
+            padding: 2px 10px;
+            border-radius: 12px;
+            color: #000;
+            font-weight: bold;
+        }
+        .state-badge.child {
+            background: #f39c12;
+        }
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .control-panel {
+                width: 100%;
+                max-height: 50vh;
+            }
+            .video-panel {
+                flex: none;
+                height: auto;
+            }
+            .video-panel img {
+                max-height: 40vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-panel">
+            <img id="videoFeed" src="http://192.168.1.101:8080/video_feed" alt="视频流">
+            <div class="stats">
+                <span>父状态: <span id="parentState" class="state-badge">--</span></span>
+                <span>子状态: <span id="childState" class="state-badge child">--</span></span>
+                <span>Circle: <strong id="circleVal">1</strong></span>
+                <span>当前目标: <strong id="minName">--</strong></span>
+                <span>Idx: <strong id="idxVal">0</strong></span>
+            </div>
+        </div>
+        <div class="control-panel">
+            <h2>分拣控制面板 <span id="connStatus" style="font-size:11px;padding:2px 8px;border-radius:12px;background:#555;float:right;">连接中</span></h2>
+
+            <div class="section">
+                <h3>状态切换</h3>
+                <div class="row">
+                    <label>事件名:</label>
+                    <select id="eventSelect">
+                        <option value="to_state0">to_state0 (转盘)</option>
+                        <option value="to_state1">to_state1 (绿圈1)</option>
+                        <option value="to_state2">to_state2 (绿材料)</option>
+                        <option value="to_state4">to_state4</option>
+                        <option value="to_state0_move">to_state0_move</option>
+                        <option value="to_state0_stop">to_state0_stop</option>
+                        <option value="to_state0_grasp">to_state0_grasp</option>
+                        <option value="to_state1_grasp">to_state1_grasp</option>
+                        <option value="to_state1_move">to_state1_move</option>
+                        <option value="to_state2_grasp">to_state2_grasp</option>
+                        <option value="to_state2_move">to_state2_move</option>
+                        <option value="to_state4_grasp">to_state4_grasp</option>
+                        <option value="to_state4_move">to_state4_move</option>
+                    </select>
+                    <button onclick="switchState()">发送</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>手动控制 <span style="font-size:11px;color:#f39c12;">(点击切换持续移动)</span></h3>
+                <div class="btn-group">
+                    <button class="btn-dir" data-direction="forward">前进</button>
+                    <button class="btn-dir" data-direction="back">后退</button>
+                    <button class="btn-dir" data-direction="left">左转</button>
+                    <button class="btn-dir" data-direction="right">右转</button>
+                    <button onclick="sendCmd('stop')" style="background:#e67e22;">夹取</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>调试参数</h3>
+                <div class="row">
+                    <label>detect_flag</label>
+                    <input type="checkbox" id="detectFlag" onchange="updateDebug()">
+                </div>
+                <div class="row">
+                    <label>idx</label>
+                    <input type="number" id="debugIdx" value="0" onchange="updateDebug()">
+                </div>
+                <div class="row">
+                    <label>material_haved</label>
+                    <input type="text" id="debugMatHaved" placeholder="逗号分隔" onchange="updateDebug()">
+                </div>
+                <div class="row">
+                    <label>move_flag</label>
+                    <input type="checkbox" id="moveFlagCb" onchange="setMoveFlag()">
+                    <span id="moveFlagLabel" style="color:#f39c12;">--</span>
+                </div>
+                <div class="row">
+                    <label>重置error_data</label>
+                    <input type="text" id="debugErrorKeys" placeholder="r_m, b_m">
+                    <button onclick="resetErrorData()">重置</button>
+                </div>
+                <button onclick="fetchDebugParams()">刷新当前值</button>
+            </div>
+
+            <div class="section">
+                <h3>相机参数</h3>
+                <div class="row">
+                    <label>YOLO曝光</label>
+                    <input type="number" id="yoloExp" value="360" style="width:100px;">
+                </div>
+                <div class="row">
+                    <label>QR曝光</label>
+                    <input type="number" id="qrExp" value="450" style="width:100px;">
+                </div>
+                <div class="row">
+                    <label>YOLO白平衡</label>
+                    <input type="number" id="yoloWB" value="4900" style="width:100px;">
+                </div>
+                <div class="row">
+                    <label>QR白平衡</label>
+                    <input type="number" id="qrWB" value="4900" style="width:100px;">
+                </div>
+                <div class="row">
+                    <label>RGB顺序</label>
+                    <input type="text" id="rgbArr" value="[3,2,1,1,2,3]" style="width:140px;">
+                </div>
+                <hr style="border-color:#0f3460;margin:8px 0;">
+                <div class="row">
+                    <label>pan_x1</label><input type="number" id="panX1" value="40" style="width:70px;">
+                    <label style="min-width:50px;">pan_y1</label><input type="number" id="panY1" value="10" style="width:70px;">
+                </div>
+                <div class="row">
+                    <label>pan_y2</label><input type="number" id="panY2" value="-5" style="width:70px;">
+                    <label style="min-width:50px;">circle_x1</label><input type="number" id="circleX1" value="8" style="width:70px;">
+                </div>
+                <div class="row">
+                    <label>circle_y1</label><input type="number" id="circleY1" value="8" style="width:70px;">
+                </div>
+                <div class="row">
+                    <label>able_x1</label><input type="number" id="ableX1" value="330" style="width:70px;">
+                    <label style="min-width:50px;">able_x2</label><input type="number" id="ableX2" value="400" style="width:70px;">
+                </div>
+                <button onclick="saveCameraParams()">保存</button>
+                <button onclick="fetchCameraParams()">刷新</button>
+            </div>
+
+            <div class="section">
+                <h3>系统</h3>
+                <div class="btn-group">
+                    <button class="danger" onclick="shutdownSystem()">关机</button>
+                    <button class="danger" onclick="restartSystem()">重启程序</button>
+                    <button class="danger" onclick="shutdownJetson()">关闭Jetson</button>
+                    <button class="danger" onclick="restartJetson()">重启Jetson</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>日志 <button onclick="clearLogs()" style="font-size:11px;padding:2px 8px;float:right;margin-left:6px;background:#c0392b;">清空</button><button id="logPauseBtn" onclick="toggleLogPause()" style="font-size:11px;padding:2px 8px;float:right;">暂停滚动</button></h3>
+                <div id="logs"></div>
+            </div>
+
+            <div class="section">
+                <h3>实时数据</h3>
+                <pre id="targetData" style="font-size:11px; background:#111; padding:5px;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://192.168.1.101:8080";
+        const STATE_INTERVAL = 2000;
+        const LOG_INTERVAL = 1000;
+
+        // ========== DOM 缓存 ==========
+        const $ = id => document.getElementById(id);
+        const els = {};  // lazy init
+        function cacheEls() {
+            els.parentState = $('parentState');
+            els.childState = $('childState');
+            els.circleVal = $('circleVal');
+            els.minName = $('minName');
+            els.idxVal = $('idxVal');
+            els.targetData = $('targetData');
+            els.logsDiv = $('logs');
+            els.logPauseBtn = $('logPauseBtn');
+            els.connStatus = $('connStatus');
+            els.detectFlag = $('detectFlag');
+            els.debugIdx = $('debugIdx');
+            els.debugMatHaved = $('debugMatHaved');
+            els.debugErrorKeys = $('debugErrorKeys');
+            els.yoloExp = $('yoloExp');
+            els.qrExp = $('qrExp');
+            els.yoloWB = $('yoloWB');
+            els.qrWB = $('qrWB');
+            els.rgbArr = $('rgbArr');
+            els.panX1 = $('panX1');
+            els.panY1 = $('panY1');
+            els.panY2 = $('panY2');
+            els.circleX1 = $('circleX1');
+            els.circleY1 = $('circleY1');
+            els.ableX1 = $('ableX1');
+            els.ableX2 = $('ableX2');
+            els.eventSelect = $('eventSelect');
+            els.moveFlagCb = $('moveFlagCb');
+            els.moveFlagLabel = $('moveFlagLabel');
+        }
+
+        // ========== 连接状态 ==========
+        let online = false;
+        let failCount = 0;
+        function setOnline(ok) {
+            if (ok !== online) {
+                online = ok;
+                els.connStatus.textContent = ok ? '在线' : '断连';
+                els.connStatus.style.background = ok ? '#27ae60' : '#c0392b';
+            }
+            failCount = ok ? 0 : failCount + 1;
+        }
+
+        // ========== 通用 fetch（带超时 + 连接状态）==========
+        const ABORT_MS = 5000;
+        async function apiGet(path) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), ABORT_MS);
+            try {
+                const res = await fetch(`${API_BASE}${path}`, { signal: ctrl.signal });
+                clearTimeout(t);
+                setOnline(true);
+                return res.ok ? res.json() : null;
+            } catch (e) {
+                clearTimeout(t);
+                setOnline(false);
+                return null;
+            }
+        }
+        async function apiPost(path, body) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), ABORT_MS);
+            try {
+                const res = await fetch(`${API_BASE}${path}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal: ctrl.signal
+                });
+                clearTimeout(t);
+                setOnline(true);
+                return res.ok ? res.json() : null;
+            } catch (e) {
+                clearTimeout(t);
+                setOnline(false);
+                return null;
+            }
+        }
+
+        // ========== 手动控制（防连点）==========
+        let activeDirection = null;
+        let dirIntervalId = null;
+        let lastCmdTime = {};
+
+        function stopCurrentDirection() {
+            if (dirIntervalId) {
+                clearInterval(dirIntervalId);
+                dirIntervalId = null;
+            }
+            if (activeDirection) {
+                document.querySelectorAll('.btn-dir').forEach(b => b.classList.remove('active-dir'));
+                activeDirection = null;
+            }
+        }
+
+        function startDirection(direction, buttonElement) {
+            stopCurrentDirection();
+            sendCmd(direction);
+            dirIntervalId = setInterval(() => sendCmd(direction), 100);
+            activeDirection = direction;
+            buttonElement.classList.add('active-dir');
+        }
+
+        function toggleDirection(direction, buttonElement) {
+            if (activeDirection === direction) {
+                stopCurrentDirection();
+            } else {
+                startDirection(direction, buttonElement);
+            }
+        }
+
+        async function sendCmd(direction) {
+            // 非持续模式下对同方向 50ms 内去重
+            const now = Date.now();
+            if (!activeDirection && lastCmdTime[direction] && now - lastCmdTime[direction] < 50) return;
+            lastCmdTime[direction] = now;
+            await apiGet(`/cmd/${direction}`);
+        }
+
+        function initDirectionButtons() {
+            document.querySelectorAll('.btn-dir').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    toggleDirection(this.getAttribute('data-direction'), this);
+                });
+            });
+            // 夹取按钮也用 apiGet
+        }
+
+        // ========== 状态刷新（缓存 JSON 避免重复序列化）==========
+        let _stateCache = {};
+        async function fetchState() {
+            const data = await apiGet('/target_data');
+            if (!data) return;
+
+            // 简单字段直接比较
+            const ps = data.parent_state || '--';
+            const cs = data.child_state || '--';
+            const cv = data.circle ?? '?';
+            const mn = data.min_name || '--';
+            const ix = data.idx ?? '?';
+
+            if (ps !== _stateCache.parent_state)
+                els.parentState.textContent = ps;
+            if (cs !== _stateCache.child_state)
+                els.childState.textContent = cs;
+            if (cv !== _stateCache.circle)
+                els.circleVal.textContent = cv;
+            if (mn !== _stateCache.min_name)
+                els.minName.textContent = mn;
+            if (ix !== _stateCache.idx)
+                els.idxVal.textContent = ix;
+
+            // move_flag 实时同步
+            const mf = data.move_flag;
+            els.moveFlagCb.checked = !!mf;
+            els.moveFlagLabel.textContent = mf ? 'True' : 'False';
+            els.moveFlagLabel.style.color = mf ? '#2ecc71' : '#e74c3c';
+
+            // result 先做紧凑比较，变了才做 pretty-print
+            const compact = JSON.stringify(data.result);
+            if (compact !== _stateCache._resultCompact) {
+                _stateCache._resultCompact = compact;
+                els.targetData.textContent = JSON.stringify(data.result, null, 2);
+            }
+
+            _stateCache.parent_state = ps;
+            _stateCache.child_state = cs;
+            _stateCache.circle = cv;
+            _stateCache.min_name = mn;
+            _stateCache.idx = ix;
+        }
+
+        // ========== 状态切换 ==========
+        async function switchState() {
+            const event = els.eventSelect.value;
+            await apiPost('/switch_state', { event });
+            fetchState();
+        }
+
+        // ========== 调试参数 ==========
+        async function fetchDebugParams() {
+            const d = await apiGet('/debug_params');
+            if (!d) return;
+            els.detectFlag.checked = d.detect_flag;
+            els.debugIdx.value = d.idx;
+            els.debugMatHaved.value = (d.material_haved || []).join(',');
+            els.debugErrorKeys.value = Object.keys(d.error_data || {}).join(',');
+        }
+
+        let _debugTimer = 0;
+        function updateDebug() {
+            clearTimeout(_debugTimer);
+            _debugTimer = setTimeout(async () => {
+                const detect_flag = els.detectFlag.checked;
+                const idx = parseInt(els.debugIdx.value) || 0;
+                const material_haved = els.debugMatHaved.value.split(',').map(s => s.trim()).filter(Boolean);
+                await apiPost('/set_debug_param', { detect_flag, idx, material_haved });
+            }, 300);
+        }
+
+        async function setMoveFlag() {
+            const val = els.moveFlagCb.checked;
+            await apiPost('/set_move_flag', { value: val });
+        }
+
+        async function resetErrorData() {
+            const keys = els.debugErrorKeys.value.split(',').map(s => s.trim()).filter(Boolean);
+            await apiPost('/set_debug_param', { error_data: keys });
+            fetchDebugParams();
+        }
+
+        // ========== 相机参数 ==========
+        async function fetchCameraParams() {
+            const d = await apiGet('/camera_params');
+            if (!d) return;
+            els.yoloExp.value = d.exposure_time_yolo;
+            els.qrExp.value = d.exposure_time_qr;
+            els.yoloWB.value = d.white_balance_temperature_yolo;
+            els.qrWB.value = d.white_balance_temperature_qr;
+            els.rgbArr.value = JSON.stringify(d.rgb);
+            if (d.pan_x1 !== undefined) els.panX1.value = d.pan_x1;
+            if (d.pan_y1 !== undefined) els.panY1.value = d.pan_y1;
+            if (d.pan_y2 !== undefined) els.panY2.value = d.pan_y2;
+            if (d.circle_x1 !== undefined) els.circleX1.value = d.circle_x1;
+            if (d.circle_y1 !== undefined) els.circleY1.value = d.circle_y1;
+            if (d.able_x1 !== undefined) els.ableX1.value = d.able_x1;
+            if (d.able_x2 !== undefined) els.ableX2.value = d.able_x2;
+        }
+
+        async function saveCameraParams() {
+            let rgb;
+            try { rgb = JSON.parse(els.rgbArr.value); } catch (e) { rgb = [3,2,1,1,2,3]; }
+            const pan_x1 = parseInt(els.panX1.value);
+            const pan_y1 = parseInt(els.panY1.value);
+            const pan_y2 = parseInt(els.panY2.value);
+            await apiPost('/set_camera_params', {
+                exposure_time_yolo: parseInt(els.yoloExp.value),
+                exposure_time_qr: parseInt(els.qrExp.value),
+                white_balance_temperature_yolo: parseInt(els.yoloWB.value),
+                white_balance_temperature_qr: parseInt(els.qrWB.value),
+                rgb,
+                pan_x1: isNaN(pan_x1) ? null : pan_x1,
+                pan_y1: isNaN(pan_y1) ? null : pan_y1,
+                pan_y2: isNaN(pan_y2) ? null : pan_y2,
+                circle_x1: parseInt(els.circleX1.value) || null,
+                circle_y1: parseInt(els.circleY1.value) || null,
+                able_x1: parseInt(els.ableX1.value) || null,
+                able_x2: parseInt(els.ableX2.value) || null,
+            });
+        }
+
+        // ========== 系统命令 ==========
+        function shutdownSystem() { if (confirm('确认关机？')) apiGet('/shutdown'); }
+        function restartSystem() { if (confirm('确认重启程序？')) apiGet('/restart'); }
+        function shutdownJetson() { if (confirm('确认关闭Jetson？')) apiGet('/shutdown_jetson'); }
+        function restartJetson() { if (confirm('确认重启Jetson？')) apiGet('/restart_jetson'); }
+
+        // ========== 日志（DOM 增量追加，避免 textContent 全量重建）==========
+        let logPaused = false;
+        let scrollRafId = null;
+
+        function toggleLogPause() {
+            logPaused = !logPaused;
+            els.logPauseBtn.textContent = logPaused ? '继续滚动' : '暂停滚动';
+            if (!logPaused) els.logsDiv.scrollTop = els.logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            els.logsDiv.innerHTML = '';
+        }
+
+        function scheduleScroll() {
+            if (!scrollRafId && !logPaused) {
+                scrollRafId = requestAnimationFrame(() => {
+                    scrollRafId = null;
+                    els.logsDiv.scrollTop = els.logsDiv.scrollHeight;
+                });
+            }
+        }
+
+        async function fetchLogs() {
+            const data = await apiGet('/get_logs');
+            if (!data || !data.logs || !data.logs.length) return;
+            const frag = document.createDocumentFragment();
+            for (const l of data.logs) {
+                const div = document.createElement('div');
+                div.textContent = `[${l.time}] ${l.level.toUpperCase()}: ${l.msg}`;
+                frag.appendChild(div);
+            }
+            els.logsDiv.appendChild(frag);
+            scheduleScroll();
+        }
+
+        // ========== 页面可见性：切后台自动暂停 ==========
+        let pageVisible = true;
+        let stateTimer = 0;
+        let logTimer = 0;
+
+        function startTimers() {
+            if (stateTimer) clearInterval(stateTimer);
+            if (logTimer) clearInterval(logTimer);
+            stateTimer = setInterval(fetchState, STATE_INTERVAL);
+            logTimer = setInterval(fetchLogs, LOG_INTERVAL);
+        }
+
+        function stopTimers() {
+            clearInterval(stateTimer); stateTimer = 0;
+            clearInterval(logTimer); logTimer = 0;
+            stopCurrentDirection();
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                pageVisible = false;
+                stopTimers();
+            } else {
+                pageVisible = true;
+                fetchState();
+                fetchLogs();
+                startTimers();
+            }
+        });
+
+        // ========== 键盘快捷键 ==========
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            const map = { w: 'forward', s: 'back', a: 'left', d: 'right', ' ': 'stop' };
+            const dir = map[e.key];
+            if (dir) {
+                e.preventDefault();
+                if (dir === 'stop') { sendCmd('stop'); }
+                else { toggleDirection(dir, document.querySelector(`[data-direction="${dir}"]`)); }
+            }
+        });
+
+        // ========== 初始化 ==========
+        window.onload = () => {
+            cacheEls();
+            initDirectionButtons();
+            fetchState();
+            fetchDebugParams();
+            fetchCameraParams();
+            startTimers();
+            console.log('分拣系统调试面板已就绪  ' + API_BASE);
+        };
+    </script>
+</body>
+</html>

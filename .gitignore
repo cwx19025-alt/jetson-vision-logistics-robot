@@ -1,0 +1,24 @@
+# 本机完整 Python 运行环境（约 300MB，绝不上传）
+py310/
+
+# 编辑器 / 工具私有配置
+.claude/
+.clinerules
+.vscode/
+.idea/
+
+# Python 运行产物
+__pycache__/
+*.pyc
+*.pyo
+
+# 运行时生成的调试帧与临时图像
+saved_frames/
+*.jpg.tmp
+
+# TensorRT engine（编译产物，体积大且机器相关）
+*.engine
+
+# 系统垃圾
+Thumbs.db
+.DS_Store

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>rgb_ma 配置</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #0f3460;
+            border-radius: 12px;
+            padding: 30px;
+            width: 450px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h2 {
+            color: #e94560;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+        }
+        .section h3 {
+            color: #f39c12;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0;
+        }
+        label {
+            min-width: 65px;
+            color: #ccc;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e94560;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 6px #e94560;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            background: #e94560;
+            color: #eee;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button:hover { background: #ff6b6b; }
+        button:active { background: #c23152; }
+        .val {
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            color: #f39c12;
+            word-break: break-all;
+            margin-top: 4px;
+        }
+        .toast {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 14px;
+            min-height: 20px;
+        }
+        .toast.ok { color: #2ecc71; }
+        .toast.err { color: #e74c3c; }
+        .hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>rgb_ma 配置</h2>
+        <div class="section">
+            <h3>rgb_ma1 (circle=1 时使用)</h3>
+            <div class="row">
+                <label>rgb_ma1</label>
+                <input type="text" id="rgbMa1Input" placeholder='["r_m","g_m","b_m"]'>
+            </div>
+            <div class="hint">格式：JSON数组，如 ["r_m","g_m","b_m"]</div>
+            <div class="val">当前：<span id="curMa1">加载中...</span></div>
+            <button onclick="saveOne('rgb_ma1', 'rgbMa1Input', 'curMa1')">保存 rgb_ma1</button>
+        </div>
+        <div class="section">
+            <h3>rgb_ma3 (circle=2 时使用)</h3>
+            <div class="row">
+                <label>rgb_ma3</label>
+                <input type="text" id="rgbMa3Input" placeholder='["r_m","g_m","b_m"]'>
+            </div>
+            <div class="hint">格式：JSON数组，如 ["r_m","g_m","b_m"]</div>
+            <div class="val">当前：<span id="curMa3">加载中...</span></div>
+            <button onclick="saveOne('rgb_ma3', 'rgbMa3Input', 'curMa3')">保存 rgb_ma3</button>
+        </div>
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+        const API_BASE = "http://192.168.1.101:8080";
+        const $ = id => document.getElementById(id);
+
+        function toast(msg, ok) {
+            const el = $('toast');
+            el.textContent = msg;
+            el.className = 'toast ' + (ok ? 'ok' : 'err');
+        }
+
+        async function fetchAll() {
+            try {
+                const res = await fetch(`${API_BASE}/camera_params`);
+                const data = await res.json();
+                $('curMa1').textContent = JSON.stringify(data.rgb_ma1);
+                $('rgbMa1Input').value = JSON.stringify(data.rgb_ma1);
+                $('curMa3').textContent = JSON.stringify(data.rgb_ma3);
+                $('rgbMa3Input').value = JSON.stringify(data.rgb_ma3);
+            } catch (e) {
+                toast('连接失败', false);
+            }
+        }
+
+        async function saveOne(key, inputId, curId) {
+            let arr;
+            try {
+                arr = JSON.parse($(inputId).value);
+                if (!Array.isArray(arr)) throw new Error('不是数组');
+            } catch (e) {
+                toast('格式错误，请输入合法的 JSON 数组', false);
+                return;
+            }
+            try {
+                const body = {};
+                body[key] = arr;
+                const res = await fetch(`${API_BASE}/set_camera_params`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    $(curId).textContent = JSON.stringify(arr);
+                    toast(key + ' 保存成功', true);
+                } else {
+                    toast('保存失败', false);
+                }
+            } catch (e) {
+                toast('请求失败', false);
+            }
+        }
+
+        window.onload = fetchAll;
+    </script>
+</body>
+</html>
